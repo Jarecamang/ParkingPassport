@@ -2,13 +2,15 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import AdminLogin from './AdminLogin';
 import AdminDashboard from './AdminDashboard';
+import ChangePasswordForm from './ChangePasswordForm';
 import { Button } from '@/components/ui/button';
-import { LogOut } from 'lucide-react';
+import { LogOut, KeyRound } from 'lucide-react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 
 const AdminView = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const { toast } = useToast();
 
   // Check if admin settings exist
@@ -55,6 +57,14 @@ const AdminView = () => {
     }
   };
 
+  const handleChangePasswordClick = () => {
+    setShowChangePassword(true);
+  };
+
+  const handleCloseChangePassword = () => {
+    setShowChangePassword(false);
+  };
+
   if (authStatusQuery.isLoading || adminSettingsQuery.isLoading) {
     return <div className="text-center py-8">Loading...</div>;
   }
@@ -68,7 +78,15 @@ const AdminView = () => {
         />
       ) : (
         <>
-          <div className="flex justify-end mb-4">
+          <div className="flex justify-end mb-4 space-x-2">
+            <Button 
+              variant="outline" 
+              onClick={handleChangePasswordClick}
+              className="text-primary"
+            >
+              <KeyRound className="h-4 w-4 mr-2" />
+              Change Password
+            </Button>
             <Button 
               variant="outline" 
               onClick={handleLogout}
@@ -78,7 +96,12 @@ const AdminView = () => {
               Logout
             </Button>
           </div>
-          <AdminDashboard />
+
+          {showChangePassword && (
+            <ChangePasswordForm onClose={handleCloseChangePassword} />
+          )}
+          
+          {!showChangePassword && <AdminDashboard />}
         </>
       )}
     </div>
