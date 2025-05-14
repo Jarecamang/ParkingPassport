@@ -2,7 +2,6 @@ import { Express, Request, Response, NextFunction } from 'express';
 import session from 'express-session';
 import { rateLimit } from 'express-rate-limit';
 import bcrypt from 'bcrypt';
-import createMemoryStore from 'memorystore';
 import { storage } from './storage';
 
 // Extend the Express session with our custom fields
@@ -11,8 +10,6 @@ declare module 'express-session' {
     isAuthenticated?: boolean;
   }
 }
-
-const MemoryStore = createMemoryStore(session);
 
 // Generate a random session secret
 const SESSION_SECRET = process.env.SESSION_SECRET || 
@@ -31,14 +28,12 @@ export function setupAuth(app: Express) {
   // Set trust proxy for rate limiter to work properly in Replit environment
   app.set('trust proxy', 1);
   
-  // Set up session middleware
+  // Set up session middleware with PostgreSQL for persistence
   app.use(session({
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    store: new MemoryStore({
-      checkPeriod: 86400000 // prune expired entries every 24h
-    }),
+    store: storage.sessionStore, // Use PostgreSQL session store
     cookie: { 
       secure: process.env.NODE_ENV === 'production',
       maxAge: 24 * 60 * 60 * 1000 // 24 hours

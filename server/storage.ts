@@ -1,13 +1,10 @@
-import { 
-  Vehicle, 
-  InsertVehicle, 
-  SearchHistory,
-  InsertSearchHistory,
-  AdminSettings,
-  InsertAdminSettings,
-  User,
-  InsertUser
-} from "@shared/schema";
+import { vehicles, users, searchHistory, adminSettings } from '@shared/schema';
+import type { Vehicle, InsertVehicle, SearchHistory, InsertSearchHistory, AdminSettings, InsertAdminSettings, User, InsertUser } from '@shared/schema';
+import { z } from 'zod';
+import session from 'express-session';
+import { eq, desc } from 'drizzle-orm';
+import connectPg from 'connect-pg-simple';
+import { db } from './db';
 
 export interface IStorage {
   // User methods
@@ -31,174 +28,185 @@ export interface IStorage {
   getAdminSettings(): Promise<AdminSettings | undefined>;
   updateAdminPassword(password: string): Promise<AdminSettings>;
   initializeAdminPassword(password: string): Promise<AdminSettings>;
+  
+  // Session store for auth
+  sessionStore: session.Store;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private vehicles: Map<number, Vehicle>;
-  private searchHistories: Map<number, SearchHistory>;
-  private adminSettings: Map<number, AdminSettings>;
-  private userCurrentId: number;
-  private vehicleCurrentId: number;
-  private searchHistoryCurrentId: number;
-  private adminSettingsCurrentId: number;
+// Create a database storage class
+export class DatabaseStorage implements IStorage {
+  sessionStore: session.Store;
 
   constructor() {
-    this.users = new Map();
-    this.vehicles = new Map();
-    this.searchHistories = new Map();
-    this.adminSettings = new Map();
-    
-    this.userCurrentId = 1;
-    this.vehicleCurrentId = 1;
-    this.searchHistoryCurrentId = 1;
-    this.adminSettingsCurrentId = 1;
-    
-    // Initialize admin password (default: admin)
-    // The auth system will properly hash this when first used
-    this.initializeAdminPassword("admin");
-    
-    // Add some sample vehicles for testing
-    this.createVehicle({
-      plateNumber: "ABC123",
-      apartment: "304",
-      ownerName: "Maria Rodriguez",
-      notes: ""
+    // Set up the session store with PostgreSQL
+    const PostgresSessionStore = connectPg(session);
+    this.sessionStore = new PostgresSessionStore({
+      conObject: {
+        connectionString: process.env.DATABASE_URL,
+      },
+      createTableIfMissing: true,
     });
     
-    this.createVehicle({
-      plateNumber: "DEF456",
-      apartment: "101",
-      ownerName: "John Smith",
-      notes: ""
-    });
-    
-    this.createVehicle({
-      plateNumber: "GHI789",
-      apartment: "205",
-      ownerName: "David Johnson",
-      notes: ""
-    });
+    // Initialize sample data (this will only happen once)
+    this.initSampleData();
+  }
+  
+  async initSampleData() {
+    try {
+      // Check if we have any vehicles
+      const existingVehicles = await db.select().from(vehicles);
+      
+      // If no vehicles exist, add sample data
+      if (existingVehicles.length === 0) {
+        console.log('Adding sample vehicle data...');
+        
+        await db.insert(vehicles).values([
+          {
+            plateNumber: 'ABC123',
+            apartment: '304',
+            ownerName: 'John Doe',
+            notes: 'Toyota Camry, Blue'
+          },
+          {
+            plateNumber: 'XYZ789',
+            apartment: '102',
+            ownerName: 'Jane Smith',
+            notes: 'Honda Civic, Red'
+          },
+          {
+            plateNumber: 'DEF456',
+            apartment: '201',
+            ownerName: 'Bob Johnson',
+            notes: 'Ford Focus, Black'
+          }
+        ]);
+      }
+    } catch (error) {
+      console.error('Error initializing sample data:', error);
+    }
   }
 
   // User methods
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.userCurrentId++;
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db.insert(users).values(insertUser).returning();
     return user;
   }
-  
+
   // Vehicle methods
   async getAllVehicles(): Promise<Vehicle[]> {
-    return Array.from(this.vehicles.values()).sort((a, b) => a.id - b.id);
+    return await db.select().from(vehicles);
   }
-  
+
   async getVehicleById(id: number): Promise<Vehicle | undefined> {
-    return this.vehicles.get(id);
-  }
-  
-  async getVehicleByPlate(plateNumber: string): Promise<Vehicle | undefined> {
-    return Array.from(this.vehicles.values()).find(
-      (vehicle) => vehicle.plateNumber.toLowerCase() === plateNumber.toLowerCase(),
-    );
-  }
-  
-  async createVehicle(insertVehicle: InsertVehicle): Promise<Vehicle> {
-    const id = this.vehicleCurrentId++;
-    const createdAt = new Date();
-    const vehicle: Vehicle = { 
-      ...insertVehicle, 
-      id,
-      createdAt,
-      ownerName: insertVehicle.ownerName || null,
-      notes: insertVehicle.notes || null
-    };
-    this.vehicles.set(id, vehicle);
+    const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.id, id));
     return vehicle;
   }
-  
-  async updateVehicle(id: number, vehicleData: Partial<InsertVehicle>): Promise<Vehicle | undefined> {
-    const existingVehicle = this.vehicles.get(id);
-    
-    if (!existingVehicle) {
-      return undefined;
-    }
-    
-    const updatedVehicle = {
-      ...existingVehicle,
-      ...vehicleData
+
+  async getVehicleByPlate(plateNumber: string): Promise<Vehicle | undefined> {
+    // Convert to uppercase for consistent search
+    const searchPlate = plateNumber.toUpperCase();
+    const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.plateNumber, searchPlate));
+    return vehicle;
+  }
+
+  async createVehicle(insertVehicle: InsertVehicle): Promise<Vehicle> {
+    // Convert plate to uppercase for consistency
+    const vehicleData = {
+      ...insertVehicle,
+      plateNumber: insertVehicle.plateNumber.toUpperCase()
     };
     
-    this.vehicles.set(id, updatedVehicle);
+    const [vehicle] = await db.insert(vehicles).values(vehicleData).returning();
+    return vehicle;
+  }
+
+  async updateVehicle(id: number, vehicleData: Partial<InsertVehicle>): Promise<Vehicle | undefined> {
+    // If plate number is being updated, ensure it's uppercase
+    if (vehicleData.plateNumber) {
+      vehicleData.plateNumber = vehicleData.plateNumber.toUpperCase();
+    }
+    
+    const [updatedVehicle] = await db
+      .update(vehicles)
+      .set(vehicleData)
+      .where(eq(vehicles.id, id))
+      .returning();
+    
     return updatedVehicle;
   }
-  
+
   async deleteVehicle(id: number): Promise<boolean> {
-    return this.vehicles.delete(id);
+    await db.delete(vehicles).where(eq(vehicles.id, id));
+    return true; // If no error was thrown, deletion was successful
   }
-  
+
   // Search history methods
   async getSearchHistory(limit: number = 10): Promise<SearchHistory[]> {
-    return Array.from(this.searchHistories.values())
-      .sort((a, b) => Number(b.searchedAt) - Number(a.searchedAt))
-      .slice(0, limit);
+    return await db
+      .select()
+      .from(searchHistory)
+      .orderBy(desc(searchHistory.searchedAt))
+      .limit(limit);
   }
-  
+
   async addSearchHistory(insertSearchHistory: InsertSearchHistory): Promise<SearchHistory> {
-    const id = this.searchHistoryCurrentId++;
-    const searchedAt = new Date();
-    const searchHistory: SearchHistory = { 
-      ...insertSearchHistory, 
-      id,
-      searchedAt,
-      apartmentNumber: insertSearchHistory.apartmentNumber || null
+    // Convert plate to uppercase for consistency
+    const searchHistoryData = {
+      ...insertSearchHistory,
+      plateNumber: insertSearchHistory.plateNumber.toUpperCase()
     };
-    this.searchHistories.set(id, searchHistory);
-    return searchHistory;
+    
+    const [newSearchHistory] = await db
+      .insert(searchHistory)
+      .values(searchHistoryData)
+      .returning();
+    
+    return newSearchHistory;
   }
-  
+
   // Admin settings methods
   async getAdminSettings(): Promise<AdminSettings | undefined> {
-    // We only have one admin settings entry with ID 1
-    return this.adminSettings.get(1);
+    const [settings] = await db.select().from(adminSettings);
+    return settings;
   }
-  
+
   async updateAdminPassword(password: string): Promise<AdminSettings> {
-    const adminSettings = await this.getAdminSettings();
+    const existingSettings = await this.getAdminSettings();
     
-    if (!adminSettings) {
-      return this.initializeAdminPassword(password);
+    if (existingSettings) {
+      // Update existing settings
+      const [updatedSettings] = await db
+        .update(adminSettings)
+        .set({ password })
+        .where(eq(adminSettings.id, existingSettings.id))
+        .returning();
+      
+      return updatedSettings;
+    } else {
+      // Create new settings if they don't exist
+      const [newSettings] = await db
+        .insert(adminSettings)
+        .values({ password })
+        .returning();
+      
+      return newSettings;
     }
-    
-    const updatedSettings: AdminSettings = {
-      ...adminSettings,
-      password
-    };
-    
-    this.adminSettings.set(1, updatedSettings);
-    return updatedSettings;
   }
-  
+
   async initializeAdminPassword(password: string): Promise<AdminSettings> {
-    const adminSettings: AdminSettings = {
-      id: 1,
-      password
-    };
-    
-    this.adminSettings.set(1, adminSettings);
-    return adminSettings;
+    // Same as updateAdminPassword for PostgreSQL
+    return this.updateAdminPassword(password);
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
