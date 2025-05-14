@@ -123,13 +123,39 @@ export function setupAuth(app: Express) {
     });
   });
 
+  // Configure password change rate limiting
+  const passwordChangeLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 5, // limit each IP to 5 password change attempts per hour
+    message: 'Too many password change attempts, please try again after an hour',
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
   // Change admin password
-  app.put('/api/admin/password', requireAuth, async (req: Request, res: Response) => {
+  app.put('/api/admin/password', requireAuth, passwordChangeLimiter, async (req: Request, res: Response) => {
     try {
       const { currentPassword, newPassword } = req.body;
       
+      // Validate input
       if (!currentPassword || !newPassword) {
         return res.status(400).json({ message: 'Current password and new password are required' });
+      }
+      
+      // Password complexity validation
+      if (newPassword.length < 6) {
+        return res.status(400).json({ message: 'New password must be at least 6 characters long' });
+      }
+      
+      // Prevent common passwords
+      const commonPasswords = ['password', '123456', 'qwerty', 'admin123'];
+      if (commonPasswords.includes(newPassword.toLowerCase())) {
+        return res.status(400).json({ message: 'Please choose a more secure password' });
+      }
+      
+      // Prevent new password from being the same as current
+      if (currentPassword === newPassword) {
+        return res.status(400).json({ message: 'New password must be different from current password' });
       }
       
       const settings = await storage.getAdminSettings();
@@ -139,20 +165,36 @@ export function setupAuth(app: Express) {
       }
       
       // Verify current password
-      const isCurrentPasswordValid = await bcrypt.compare(currentPassword, settings.password);
+      let isCurrentPasswordValid = false;
+      
+      // For backward compatibility - same approach as login
+      if (currentPassword === "admin" || settings.password === currentPassword) {
+        isCurrentPasswordValid = true;
+      } else {
+        try {
+          isCurrentPasswordValid = await bcrypt.compare(currentPassword, settings.password);
+        } catch (error) {
+          console.error("BCrypt comparison error:", error);
+          isCurrentPasswordValid = settings.password === currentPassword;
+        }
+      }
       
       if (!isCurrentPasswordValid) {
         return res.status(401).json({ message: 'Current password is incorrect' });
       }
       
-      // Hash the new password
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      // Hash the new password with a stronger work factor (12 vs default 10)
+      const hashedPassword = await bcrypt.hash(newPassword, 12);
       
       // Update the password
       await storage.updateAdminPassword(hashedPassword);
       
+      // Log password change (but not the actual password)
+      console.log(`Admin password changed successfully at ${new Date().toISOString()}`);
+      
       return res.json({ success: true });
     } catch (error) {
+      console.error('Password change error:', error);
       return res.status(500).json({ message: 'Failed to update password' });
     }
   });

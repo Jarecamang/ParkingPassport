@@ -69,6 +69,47 @@ const ChangePasswordForm = ({ onClose }: ChangePasswordFormProps) => {
       return;
     }
     
+    // Check password complexity - don't allow common passwords
+    const commonPasswords = ['password', '123456', 'qwerty', 'admin123'];
+    if (commonPasswords.includes(newPassword.toLowerCase())) {
+      toast({
+        title: "Password too weak",
+        description: "Please choose a more secure password.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Check if new password is same as current
+    if (currentPassword === newPassword) {
+      toast({
+        title: "Same password",
+        description: "New password must be different from current password.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Basic password strength check
+    const hasUpperCase = /[A-Z]/.test(newPassword);
+    const hasLowerCase = /[a-z]/.test(newPassword);
+    const hasNumbers = /\d/.test(newPassword);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword);
+    
+    if (!(hasUpperCase && hasLowerCase && (hasNumbers || hasSpecialChar))) {
+      toast({
+        title: "Password too weak",
+        description: "Password should have uppercase, lowercase and either numbers or special characters.",
+        variant: "destructive"
+      });
+      // Show error but still allow the user to proceed if they confirm
+      
+      // Ask for confirmation
+      if (!confirm("Your password is weak. Are you sure you want to continue?")) {
+        return;
+      }
+    }
+    
     changePasswordMutation.mutate({
       currentPassword,
       newPassword
@@ -118,9 +159,15 @@ const ChangePasswordForm = ({ onClose }: ChangePasswordFormProps) => {
                 className="focus:border-primary focus:ring-primary"
                 placeholder="Enter new password"
               />
-              <p className="text-xs text-secondary mt-1">
-                Must be at least 6 characters long
-              </p>
+              <div className="text-xs text-secondary mt-1 space-y-1">
+                <p>Password requirements:</p>
+                <ul className="list-disc list-inside ml-1">
+                  <li>At least 6 characters long</li>
+                  <li>Mix of uppercase and lowercase letters</li>
+                  <li>Include numbers or special characters</li>
+                  <li>Cannot be a common password (e.g., "password")</li>
+                </ul>
+              </div>
             </div>
             
             <div>
