@@ -69,22 +69,39 @@ export function setupAuth(app: Express) {
         return res.status(404).json({ message: 'Admin settings not found' });
       }
       
-      // For backward compatibility during transition - allow direct "admin" password
-      // This is temporary and should be removed in production
+      // Check if password is valid
       let isPasswordValid = false;
       
-      if (password === "admin" || settings.password === password) {
+      // First check if we're still using the default password "admin"
+      // To do this properly, let's verify if the stored password matches "admin"
+      let isUsingDefaultPassword = false;
+      
+      try {
+        // If the stored hash is from the word "admin", this will return true
+        isUsingDefaultPassword = await bcrypt.compare("admin", settings.password);
+      } catch (error) {
+        console.error("BCrypt comparison error:", error);
+        // Fallback to direct comparison for backward compatibility
+        isUsingDefaultPassword = settings.password === "admin";
+      }
+      
+      // Only allow "admin" login if we're still using the default password
+      if (password === "admin" && isUsingDefaultPassword) {
+        console.log("Logging in with default admin password");
         isPasswordValid = true;
-        
-        // If we're using the default password, hash it properly for next time
-        if (password === "admin") {
-          const hashedPassword = await bcrypt.hash("admin", 10);
-          await storage.updateAdminPassword(hashedPassword);
-        }
-      } else {
-        // Try to compare with bcrypt
+      } 
+      // Next check if password matches directly (legacy support)
+      else if (settings.password === password) {
+        console.log("Logging in with direct password match (legacy)");
+        isPasswordValid = true;
+      } 
+      // Finally check with bcrypt (preferred method)
+      else {
         try {
           isPasswordValid = await bcrypt.compare(password, settings.password);
+          if (isPasswordValid) {
+            console.log("Logging in with bcrypt password match");
+          }
         } catch (error) {
           console.error("BCrypt comparison error:", error);
           // If bcrypt fails (malformed hash), fallback to direct comparison
@@ -167,12 +184,34 @@ export function setupAuth(app: Express) {
       // Verify current password
       let isCurrentPasswordValid = false;
       
-      // For backward compatibility - same approach as login
-      if (currentPassword === "admin" || settings.password === currentPassword) {
+      // First check if we're still using the default password "admin"
+      let isUsingDefaultPassword = false;
+      
+      try {
+        // If the stored hash is from the word "admin", this will return true
+        isUsingDefaultPassword = await bcrypt.compare("admin", settings.password);
+      } catch (error) {
+        console.error("BCrypt comparison error:", error);
+        isUsingDefaultPassword = settings.password === "admin";
+      }
+      
+      // Only allow "admin" as current password if we're still using the default
+      if (currentPassword === "admin" && isUsingDefaultPassword) {
+        console.log("Verifying with default admin password");
         isCurrentPasswordValid = true;
-      } else {
+      }
+      // Next check if password matches directly (legacy support)
+      else if (settings.password === currentPassword) {
+        console.log("Verifying with direct password match (legacy)");
+        isCurrentPasswordValid = true;
+      }
+      // Finally check with bcrypt (preferred method)
+      else {
         try {
           isCurrentPasswordValid = await bcrypt.compare(currentPassword, settings.password);
+          if (isCurrentPasswordValid) {
+            console.log("Verifying with bcrypt password match");
+          }
         } catch (error) {
           console.error("BCrypt comparison error:", error);
           isCurrentPasswordValid = settings.password === currentPassword;
