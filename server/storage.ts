@@ -55,7 +55,8 @@ export class MemStorage implements IStorage {
     this.adminSettingsCurrentId = 1;
     
     // Initialize admin password (default: admin)
-    this.initializeAdminPassword("admin");
+    // We'll update this with bcrypt hash in the routes.ts file
+    this.initializeAdminPassword("$2b$10$8nFJHmkXVqIePkNN3LbnFeuQDpYh7.QSh0cAwoVGDc7b349o2IODO"); // "admin" hashed with bcrypt
     
     // Add some sample vehicles for testing
     this.createVehicle({
@@ -119,7 +120,9 @@ export class MemStorage implements IStorage {
     const vehicle: Vehicle = { 
       ...insertVehicle, 
       id,
-      createdAt
+      createdAt,
+      ownerName: insertVehicle.ownerName || null,
+      notes: insertVehicle.notes || null
     };
     this.vehicles.set(id, vehicle);
     return vehicle;
@@ -158,7 +161,8 @@ export class MemStorage implements IStorage {
     const searchHistory: SearchHistory = { 
       ...insertSearchHistory, 
       id,
-      searchedAt
+      searchedAt,
+      apartmentNumber: insertSearchHistory.apartmentNumber || null
     };
     this.searchHistories.set(id, searchHistory);
     return searchHistory;

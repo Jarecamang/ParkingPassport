@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { insertVehicleSchema, insertSearchHistorySchema } from "@shared/schema";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
+import { setupAuth } from "./auth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Get admin settings (password)
