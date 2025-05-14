@@ -1,16 +1,58 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import AdminLogin from './AdminLogin';
 import AdminDashboard from './AdminDashboard';
+import { Button } from '@/components/ui/button';
+import { LogOut } from 'lucide-react';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
 
 const AdminView = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const { toast } = useToast();
 
   // Check if admin settings exist
   const adminSettingsQuery = useQuery({
     queryKey: ['/api/admin/settings'],
     enabled: !isLoggedIn
   });
+
+  // Check if user is already authenticated
+  const authStatusQuery = useQuery({
+    queryKey: ['/api/admin/auth-status']
+  });
+
+  // Set login state based on auth status
+  useEffect(() => {
+    if (authStatusQuery.data && 'isAuthenticated' in authStatusQuery.data) {
+      setIsLoggedIn(authStatusQuery.data.isAuthenticated);
+    }
+  }, [authStatusQuery.data]);
+
+  const handleLogout = async () => {
+    try {
+      await apiRequest('POST', '/api/admin/logout');
+      setIsLoggedIn(false);
+      
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/auth-status'] });
+      
+      toast({
+        title: "Logged out",
+        description: "You have been logged out successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Logout failed",
+        description: "There was an error logging out",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (authStatusQuery.isLoading || adminSettingsQuery.isLoading) {
+    return <div className="text-center py-8">Loading...</div>;
+  }
 
   return (
     <div>
@@ -20,7 +62,19 @@ const AdminView = () => {
           isLoading={adminSettingsQuery.isLoading}
         />
       ) : (
-        <AdminDashboard />
+        <>
+          <div className="flex justify-end mb-4">
+            <Button 
+              variant="outline" 
+              onClick={handleLogout}
+              className="text-secondary"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
+          </div>
+          <AdminDashboard />
+        </>
       )}
     </div>
   );

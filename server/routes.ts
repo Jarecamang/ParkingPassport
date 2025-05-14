@@ -7,7 +7,10 @@ import { fromZodError } from "zod-validation-error";
 import { setupAuth } from "./auth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Get admin settings (password)
+  // Set up authentication with sessions, bcrypt, and rate limiting
+  const { requireAuth } = setupAuth(app);
+
+  // Get admin settings
   app.get("/api/admin/settings", async (req: Request, res: Response) => {
     try {
       const settings = await storage.getAdminSettings();
@@ -22,60 +25,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Verify admin password
-  app.post("/api/admin/login", async (req: Request, res: Response) => {
-    try {
-      const { password } = req.body;
-      
-      if (!password) {
-        return res.status(400).json({ message: "Password is required" });
-      }
-      
-      const settings = await storage.getAdminSettings();
-      
-      if (!settings) {
-        return res.status(404).json({ message: "Admin settings not found" });
-      }
-      
-      if (settings.password !== password) {
-        return res.status(401).json({ message: "Invalid password" });
-      }
-      
-      return res.json({ success: true });
-    } catch (error) {
-      return res.status(500).json({ message: "Failed to verify password" });
-    }
-  });
-
-  // Change admin password
-  app.put("/api/admin/password", async (req: Request, res: Response) => {
-    try {
-      const { currentPassword, newPassword } = req.body;
-      
-      if (!currentPassword || !newPassword) {
-        return res.status(400).json({ message: "Current password and new password are required" });
-      }
-      
-      const settings = await storage.getAdminSettings();
-      
-      if (!settings) {
-        return res.status(404).json({ message: "Admin settings not found" });
-      }
-      
-      if (settings.password !== currentPassword) {
-        return res.status(401).json({ message: "Current password is incorrect" });
-      }
-      
-      const updatedSettings = await storage.updateAdminPassword(newPassword);
-      
-      return res.json({ success: true });
-    } catch (error) {
-      return res.status(500).json({ message: "Failed to update password" });
-    }
-  });
-
-  // Get all vehicles
-  app.get("/api/vehicles", async (req: Request, res: Response) => {
+  // Get all vehicles - requires authentication
+  app.get("/api/vehicles", requireAuth, async (req: Request, res: Response) => {
     try {
       const vehicles = await storage.getAllVehicles();
       return res.json(vehicles);
@@ -84,8 +35,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get vehicle by ID
-  app.get("/api/vehicles/:id", async (req: Request, res: Response) => {
+  // Get vehicle by ID - requires authentication
+  app.get("/api/vehicles/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       
@@ -136,8 +87,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create a new vehicle
-  app.post("/api/vehicles", async (req: Request, res: Response) => {
+  // Create a new vehicle - requires authentication
+  app.post("/api/vehicles", requireAuth, async (req: Request, res: Response) => {
     try {
       const vehicleData = insertVehicleSchema.parse(req.body);
       
@@ -158,8 +109,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update a vehicle
-  app.put("/api/vehicles/:id", async (req: Request, res: Response) => {
+  // Update a vehicle - requires authentication
+  app.put("/api/vehicles/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       
@@ -201,8 +152,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Delete a vehicle
-  app.delete("/api/vehicles/:id", async (req: Request, res: Response) => {
+  // Delete a vehicle - requires authentication
+  app.delete("/api/vehicles/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       
@@ -229,8 +180,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get search history
-  app.get("/api/search-history", async (req: Request, res: Response) => {
+  // Get search history - requires authentication
+  app.get("/api/search-history", requireAuth, async (req: Request, res: Response) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
       const history = await storage.getSearchHistory(limit);
