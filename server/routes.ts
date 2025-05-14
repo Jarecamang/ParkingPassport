@@ -71,7 +71,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.addSearchHistory({
         plateNumber,
         allowed: !!vehicle,
-        apartmentNumber: vehicle?.apartment,
+        apartment: vehicle?.apartment,
       });
       
       if (!vehicle) {

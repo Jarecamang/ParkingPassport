@@ -64,20 +64,29 @@ export class DatabaseStorage implements IStorage {
           {
             plateNumber: 'ABC123',
             apartment: '304',
-            ownerName: 'John Doe',
-            notes: 'Toyota Camry, Blue'
+            owner: 'John Doe',
+            make: 'Toyota',
+            model: 'Camry',
+            color: 'Blue',
+            permitted: true
           },
           {
             plateNumber: 'XYZ789',
             apartment: '102',
-            ownerName: 'Jane Smith',
-            notes: 'Honda Civic, Red'
+            owner: 'Jane Smith',
+            make: 'Honda',
+            model: 'Civic',
+            color: 'Red',
+            permitted: true
           },
           {
             plateNumber: 'DEF456',
             apartment: '201',
-            ownerName: 'Bob Johnson',
-            notes: 'Ford Focus, Black'
+            owner: 'Bob Johnson',
+            make: 'Ford',
+            model: 'Focus',
+            color: 'Black',
+            permitted: false
           }
         ]);
       }
@@ -155,7 +164,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(searchHistory)
-      .orderBy(desc(searchHistory.searchedAt))
+      .orderBy(desc(searchHistory.timestamp))
       .limit(limit);
   }
 

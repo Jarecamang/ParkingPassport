@@ -21,16 +21,22 @@ export const vehicles = pgTable("vehicles", {
   id: serial("id").primaryKey(),
   plateNumber: text("plate_number").notNull().unique(),
   apartment: text("apartment").notNull(),
-  ownerName: text("owner_name"),
-  notes: text("notes"),
+  owner: text("owner").notNull(),
+  make: text("make"),
+  model: text("model"),
+  color: text("color"),
+  permitted: boolean("permitted").default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const insertVehicleSchema = createInsertSchema(vehicles).pick({
   plateNumber: true,
   apartment: true,
-  ownerName: true,
-  notes: true,
+  owner: true,
+  make: true,
+  model: true,
+  color: true,
+  permitted: true,
 });
 
 export type InsertVehicle = z.infer<typeof insertVehicleSchema>;
@@ -41,14 +47,14 @@ export const searchHistory = pgTable("search_history", {
   id: serial("id").primaryKey(),
   plateNumber: text("plate_number").notNull(),
   allowed: boolean("allowed").notNull(),
-  apartmentNumber: text("apartment_number"),
-  searchedAt: timestamp("searched_at").notNull().defaultNow(),
+  apartment: text("apartment"),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
 });
 
 export const insertSearchHistorySchema = createInsertSchema(searchHistory).pick({
   plateNumber: true,
   allowed: true,
-  apartmentNumber: true,
+  apartment: true,
 });
 
 export type InsertSearchHistory = z.infer<typeof insertSearchHistorySchema>;
