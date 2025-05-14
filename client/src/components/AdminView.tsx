@@ -17,14 +17,19 @@ const AdminView = () => {
     enabled: !isLoggedIn
   });
 
+  // Define a type for the auth status response
+  interface AuthStatus {
+    isAuthenticated: boolean;
+  }
+
   // Check if user is already authenticated
-  const authStatusQuery = useQuery({
+  const authStatusQuery = useQuery<AuthStatus>({
     queryKey: ['/api/admin/auth-status']
   });
 
   // Set login state based on auth status
   useEffect(() => {
-    if (authStatusQuery.data && 'isAuthenticated' in authStatusQuery.data) {
+    if (authStatusQuery.data) {
       setIsLoggedIn(authStatusQuery.data.isAuthenticated);
     }
   }, [authStatusQuery.data]);

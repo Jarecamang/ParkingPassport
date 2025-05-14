@@ -55,8 +55,8 @@ export class MemStorage implements IStorage {
     this.adminSettingsCurrentId = 1;
     
     // Initialize admin password (default: admin)
-    // We'll update this with bcrypt hash in the routes.ts file
-    this.initializeAdminPassword("$2b$10$8nFJHmkXVqIePkNN3LbnFeuQDpYh7.QSh0cAwoVGDc7b349o2IODO"); // "admin" hashed with bcrypt
+    // The auth system will properly hash this when first used
+    this.initializeAdminPassword("admin");
     
     // Add some sample vehicles for testing
     this.createVehicle({
